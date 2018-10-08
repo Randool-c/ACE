@@ -4,6 +4,7 @@ import interpolation as ip
 import getnodes
 import transform
 import matplotlib.pyplot as plt
+from error import CoarsenError
 from disjoint_set import Disjoint
 
 
@@ -11,8 +12,7 @@ fig = plt.figure()
 ax1 = fig.add_subplot(111)
 
 
-def drawing(laplacian, mass_matrix, dim, interpolation_method):
-    threshold = 100
+def drawing(laplacian, mass_matrix, dim, interpolation_method, threshold):
     epsilon = 1e-9
     n = laplacian.shape[0]
     print(n)
@@ -24,16 +24,10 @@ def drawing(laplacian, mass_matrix, dim, interpolation_method):
         if interpolation_matrix.shape[0] == interpolation_matrix.shape[1]:
             vectors = direct_solution(laplacian, mass_matrix, dim, epsilon)
         else:
-            # print(interpolation_matrix)
-            # interpolation_matrix = ip.weighted_interpolation(laplacian)
-            # interpolation_matrix = ip.edge_contraction_interpolation(laplacian)
-            # coarser_laplacian = interpolation_matrix.T * laplacian * interpolation_matrix
-            # coarser_mass_matrix = calculate_coarser_mass_matrix(interpolation_matrix, mass_matrix)
             vectors = (interpolation_matrix *
                        drawing(interpolation_matrix.T * laplacian * interpolation_matrix,
                                calculate_coarser_mass_matrix(interpolation_matrix, mass_matrix),
-                               dim, interpolation_method))
-            # vectors = interpolation_matrix * vectors
+                               dim, interpolation_method, threshold))
             power_iteration(vectors, laplacian, mass_matrix, epsilon)
         print(n)
     return vectors
@@ -102,7 +96,7 @@ def direct_solution(laplacian, mass_matrix, dim, epsilon):
 # interpolate_method: 'w' -- weighted interpolation, 'e' -- edge contraction interpolation
 # *d: 参数数量取决于layout的维度。
 # 每一个维度是一个两个元素的list，为该维度的起始值和终止值。例如[100, 1000]
-def ace(interpolate_method, *d):
+def ace(interpolate_method, *d, threshold=100):
     dim = len(d)
     n = 1000  # 节点个数太多，只取前n个节点布局
     _input = getnodes.get_input()[:n]
@@ -118,23 +112,23 @@ def ace(interpolate_method, *d):
             i, j = get_index[edge['sourceIP']], get_index[edge['destinationIP']]
             laplacian[i, j] -= 1
             laplacian[j, i] -= 1
-            # mass_matrix[i, i] += 1
-            # mass_matrix[j, j] += 1
+            mass_matrix[i, i] += 1
+            mass_matrix[j, j] += 1
     for i in range(n):
         for j in range(n):
             if i != j:
                 laplacian[i, i] -= laplacian[i, j]
-    # print(laplacian)
 
-    # x = Disjoint(laplacian)
-    # print(x.get_length())
+    if interpolate_method == 'e':
+        x = Disjoint(laplacian)
+        if x.get_length() > 100:
+            raise CoarsenError
 
-    coordinates = drawing(laplacian, mass_matrix, dim, interpolate_method)
+    coordinates = drawing(laplacian, mass_matrix, dim, interpolate_method, threshold)
 
     for i in range(n):
         for j in range(dim):
             _input[i]['dim' + str(j + 1)] = 0.5 * (d[j][1] - d[j][0]) * coordinates[i, j] + 0.5 * (d[j][0] + d[j][1])
-    # print(np.linalg.norm(coordinates[..., 0]), np.linalg.norm(coordinates[..., 1]))
 
     ax1.scatter(coordinates[..., 0].getA().flatten(), coordinates[..., 1].getA().flatten(), c='r', marker='o')
     plt.show()
@@ -142,10 +136,6 @@ def ace(interpolate_method, *d):
 
 
 def main():
-    # laplacian = np.matlib.matrix([[9, -5, 0, -4, 0], [-5, 17, -2, -7, -3], [0, -2, 4, -2, 0],
-    #                               [-4, -7, -2, 19, -6], [0, -3, 0, -6, 9]], dtype=float)
-    # mass_matrix = np.matlib.identity(5, float)
-    # print(drawing(laplacian, mass_matrix, 2))
     ans = ace('w', [-100, 100], [-100, 100])
 
     for data in ans:
