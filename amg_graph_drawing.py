@@ -72,7 +72,6 @@ def power_iteration(initial_vectors, laplacian, mass_matrix, epsilon):
 
     initial_vectors = np.delete(initial_vectors, 0, axis=1)  # 删除退化解（第一列）
     initial_vectors = np.linalg.inv(np.sqrt(mass_matrix)) * initial_vectors
-    # return initial_vectors
 
 
 def gershgorin(b_mat):
